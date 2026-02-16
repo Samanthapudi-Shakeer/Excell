@@ -4,10 +4,9 @@ import io
 import xml.etree.ElementTree as ET
 import zipfile
 from dataclasses import dataclass
-from typing import Callable, List
+from typing import Callable
 
 A_NS = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
-C_NS = "{http://schemas.openxmlformats.org/drawingml/2006/chart}"
 
 
 @dataclass
@@ -18,31 +17,45 @@ class XmlTranslationLog:
     error: str | None = None
 
 
-def _translate_in_xml(xml_bytes: bytes, translate_func: Callable[[str, str], tuple[str, str]], object_prefix: str) -> tuple[bytes, List[XmlTranslationLog]]:
-    logs: List[XmlTranslationLog] = []
+def _text_nodes(root: ET.Element) -> list[ET.Element]:
+    """Return text nodes for shapes/chart rich text.
+
+    We intentionally translate only DrawingML text nodes (`a:t`) and avoid
+    chart numeric/value nodes (`c:v`) to preserve chart data.
+    """
+    return list(root.iter(f"{A_NS}t"))
+
+
+def _translate_in_xml(
+    xml_bytes: bytes,
+    translate_func: Callable[[str, str], tuple[str, str]],
+    object_prefix: str,
+) -> tuple[bytes, list[XmlTranslationLog]]:
+    logs: list[XmlTranslationLog] = []
     root = ET.fromstring(xml_bytes)
 
-    nodes = list(root.iter(f"{A_NS}t"))
-    nodes.extend(root.iter(f"{C_NS}v"))
-
-    for idx, node in enumerate(nodes):
+    for idx, node in enumerate(_text_nodes(root)):
         original = node.text
         if not original or not original.strip():
             continue
+        object_id = f"{object_prefix}:{idx}"
         try:
-            translated, _engine = translate_func(original, f"{object_prefix}:{idx}")
+            translated, _engine = translate_func(original, object_id)
             node.text = translated
-            logs.append(XmlTranslationLog(object_id=f"{object_prefix}:{idx}", original_text=original, translated_text=translated))
+            logs.append(XmlTranslationLog(object_id=object_id, original_text=original, translated_text=translated))
         except Exception as exc:
-            logs.append(XmlTranslationLog(object_id=f"{object_prefix}:{idx}", original_text=original, translated_text=original, error=str(exc)))
+            logs.append(XmlTranslationLog(object_id=object_id, original_text=original, translated_text=original, error=str(exc)))
 
     return ET.tostring(root, encoding="utf-8", xml_declaration=True), logs
 
 
-def translate_drawings_and_charts(xlsx_bytes: bytes, translate_func: Callable[[str, str], tuple[str, str]]) -> tuple[bytes, List[XmlTranslationLog]]:
+def translate_drawings_and_charts(
+    xlsx_bytes: bytes,
+    translate_func: Callable[[str, str], tuple[str, str]],
+) -> tuple[bytes, list[XmlTranslationLog]]:
     in_mem = io.BytesIO(xlsx_bytes)
     out_mem = io.BytesIO()
-    all_logs: List[XmlTranslationLog] = []
+    all_logs: list[XmlTranslationLog] = []
 
     with zipfile.ZipFile(in_mem, "r") as zin, zipfile.ZipFile(out_mem, "w", compression=zipfile.ZIP_DEFLATED) as zout:
         for info in zin.infolist():

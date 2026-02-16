@@ -36,6 +36,8 @@ def _safe_sheet_title(name: str, existing: set[str]) -> str:
 
 
 def _is_formula(cell: Cell) -> bool:
+    if cell.data_type == "f":
+        return True
     return isinstance(cell.value, str) and cell.value.startswith("=")
 
 
@@ -90,8 +92,12 @@ def process_excel_file(
             )
 
     for ws in wb.worksheets:
-        for row in ws.iter_rows():
-            for cell in row:
+        # Traverse deterministically by explicit row/column coordinates to ensure
+        # full coverage across the worksheet grid boundaries.
+        for row_idx in range(1, ws.max_row + 1):
+            for col_idx in range(1, ws.max_column + 1):
+                cell = ws.cell(row=row_idx, column=col_idx)
+
                 if isinstance(cell.value, str) and not _is_formula(cell):
                     original = cell.value
                     try:

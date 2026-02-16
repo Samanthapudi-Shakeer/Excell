@@ -19,6 +19,7 @@ def _sample_workbook_bytes() -> bytes:
     ws["B2"] = 20
     ws["C2"] = "=A2+B2"
     ws["A3"] = "Merged text"
+    ws["D4"] = "Far text"
     ws.merge_cells("A3:B3")
     ws["A1"].font = Font(bold=True, color="00FF0000")
     ws["A1"].comment = Comment("Review this", "qa")
@@ -61,6 +62,7 @@ def test_translation_preserves_formula_and_formatting(monkeypatch):
     ws = wb[wb.sheetnames[0]]
 
     assert ws["A1"].value == "T[Hello]"
+    assert ws["D4"].value == "T[Far text]"
     assert ws["C2"].value == "=A2+B2"
     assert ws["A1"].font.bold is True
     assert ws["A1"].font.color.rgb == "00FF0000"

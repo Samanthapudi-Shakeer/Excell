@@ -52,3 +52,8 @@ Validate original vs translated workbook:
 ```bash
 python scripts/validate_translation.py tests/assets/sample_input.xlsx /path/to/translated.xlsx
 ```
+
+Basic translator setup check (Azure + Ollama using "hello"):
+```bash
+python test_setup.py
+```
