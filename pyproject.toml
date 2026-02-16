@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "excell-translator"
+version = "0.1.0"
+description = "Enterprise-grade Excel translation automation with Streamlit"
+requires-python = ">=3.10"
+dependencies = [
+  "streamlit>=1.36",
+  "openpyxl>=3.1",
+  "requests>=2.32",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
