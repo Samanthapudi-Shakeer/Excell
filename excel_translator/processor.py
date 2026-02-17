@@ -42,6 +42,29 @@ def _with_lang_suffix(name: str, target_lang: str) -> str:
     return f"{p.stem}_{target_lang}{p.suffix}"
 
 
+def _translated_output_filename(
+    file_name: str,
+    translator: RoutedTranslator,
+    source_lang: str,
+    target_lang: str,
+) -> str:
+    p = Path(file_name)
+    original_stem = p.stem or "translated"
+
+    try:
+        translated_stem, _ = _translate_text(translator, original_stem, source_lang, target_lang)
+    except Exception:
+        translated_stem = original_stem
+
+    safe_stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", translated_stem).strip(" .")
+    if not safe_stem:
+        safe_stem = original_stem
+
+    safe_stem = safe_stem[:180]
+    suffix = p.suffix or ".xlsx"
+    return _with_lang_suffix(f"{safe_stem}{suffix}", target_lang)
+
+
 def _translate_text(translator: RoutedTranslator, text: str, source_lang: str, target_lang: str) -> tuple[str, str]:
     return translator.translate_with_engine(text, source_lang, target_lang)
 
@@ -302,4 +325,8 @@ def process_excel_file(
                 )
             )
 
-    return ProcessingResult(output_filename=_with_lang_suffix(file_name, target_lang), output_bytes=final_bytes, logs=logs)
+    return ProcessingResult(
+        output_filename=_translated_output_filename(file_name, translator, source_lang, target_lang),
+        output_bytes=final_bytes,
+        logs=logs,
+    )
