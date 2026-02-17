@@ -42,6 +42,26 @@ def _sample_workbook_bytes() -> bytes:
     return buf.getvalue()
 
 
+def _inject_custom_drawing(workbook_bytes: bytes) -> bytes:
+    drawing_xml = b'''<?xml version="1.0" encoding="UTF-8"?>
+<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <xdr:twoCellAnchor>
+    <xdr:sp>
+      <xdr:txBody>
+        <a:p><a:r><a:t>Flowchart Step</a:t></a:r></a:p>
+      </xdr:txBody>
+    </xdr:sp>
+  </xdr:twoCellAnchor>
+</xdr:wsDr>'''
+
+    in_buf = io.BytesIO(workbook_bytes)
+    out_buf = io.BytesIO()
+    with zipfile.ZipFile(in_buf, "r") as zin, zipfile.ZipFile(out_buf, "w", zipfile.ZIP_DEFLATED) as zout:
+        for info in zin.infolist():
+            zout.writestr(info, zin.read(info.filename))
+        zout.writestr("xl/drawings/drawing99.xml", drawing_xml)
+
+    return out_buf.getvalue()
 
 
 def _chart_a_t_texts(xlsx_bytes: bytes) -> list[str]:
@@ -50,6 +70,14 @@ def _chart_a_t_texts(xlsx_bytes: bytes) -> list[str]:
         assert chart_parts
         root = ET.fromstring(zf.read(chart_parts[0]))
         return [node.text for node in root.iter("{http://schemas.openxmlformats.org/drawingml/2006/main}t") if node.text]
+
+
+def _drawing_texts(xlsx_bytes: bytes, path: str) -> list[str]:
+    with zipfile.ZipFile(io.BytesIO(xlsx_bytes), "r") as zf:
+        assert path in zf.namelist()
+        root = ET.fromstring(zf.read(path))
+        return [node.text for node in root.iter("{http://schemas.openxmlformats.org/drawingml/2006/main}t") if node.text]
+
 
 def test_translation_preserves_formula_and_formatting(monkeypatch):
     from excel_translator import processor
@@ -62,7 +90,7 @@ def test_translation_preserves_formula_and_formatting(monkeypatch):
 
     result = process_excel_file(
         file_name="input.xlsx",
-        file_bytes=_sample_workbook_bytes(),
+        file_bytes=_inject_custom_drawing(_sample_workbook_bytes()),
         source_lang="en",
         target_lang="fr",
         selected_engine="azure",
@@ -82,6 +110,9 @@ def test_translation_preserves_formula_and_formatting(monkeypatch):
     assert "T[Quarterly Revenue]" in chart_texts
     assert "T[Amount]" in chart_texts
     assert "T[Quarter]" in chart_texts
+
+    drawing_texts = _drawing_texts(result.output_bytes, "xl/drawings/drawing99.xml")
+    assert drawing_texts == ["T[Flowchart Step]"]
 
     assert len(wb.sheetnames) == 2
     assert result.output_filename == "input_fr.xlsx"
