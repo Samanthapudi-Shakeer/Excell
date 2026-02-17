@@ -22,8 +22,11 @@ def _translate_in_xml(xml_bytes: bytes, translate_func: Callable[[str, str], tup
     logs: List[XmlTranslationLog] = []
     root = ET.fromstring(xml_bytes)
 
+    # DrawingML visible text for shapes/charts is stored in <a:t> nodes.
+    # We intentionally do not translate chart data values (<c:v>) to avoid
+    # mutating underlying chart series data.
     nodes = list(root.iter(f"{A_NS}t"))
-    nodes.extend(root.iter(f"{C_NS}v"))
+    before_count = len(nodes)
 
     for idx, node in enumerate(nodes):
         original = node.text
@@ -35,6 +38,10 @@ def _translate_in_xml(xml_bytes: bytes, translate_func: Callable[[str, str], tup
             logs.append(XmlTranslationLog(object_id=f"{object_prefix}:{idx}", original_text=original, translated_text=translated))
         except Exception as exc:
             logs.append(XmlTranslationLog(object_id=f"{object_prefix}:{idx}", original_text=original, translated_text=original, error=str(exc)))
+
+    after_count = sum(1 for _ in root.iter(f"{A_NS}t"))
+    if before_count != after_count:
+        raise ValueError(f"{object_prefix}: <a:t> node count changed unexpectedly ({before_count} -> {after_count})")
 
     return ET.tostring(root, encoding="utf-8", xml_declaration=True), logs
 

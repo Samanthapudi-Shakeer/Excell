@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import io
+import xml.etree.ElementTree as ET
+import zipfile
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.chart import BarChart, Reference
@@ -40,6 +42,15 @@ def _sample_workbook_bytes() -> bytes:
     return buf.getvalue()
 
 
+
+
+def _chart_a_t_texts(xlsx_bytes: bytes) -> list[str]:
+    with zipfile.ZipFile(io.BytesIO(xlsx_bytes), "r") as zf:
+        chart_parts = sorted(name for name in zf.namelist() if name.startswith("xl/charts/chart") and name.endswith(".xml"))
+        assert chart_parts
+        root = ET.fromstring(zf.read(chart_parts[0]))
+        return [node.text for node in root.iter("{http://schemas.openxmlformats.org/drawingml/2006/main}t") if node.text]
+
 def test_translation_preserves_formula_and_formatting(monkeypatch):
     from excel_translator import processor
 
@@ -66,6 +77,11 @@ def test_translation_preserves_formula_and_formatting(monkeypatch):
     assert ws["A1"].font.color.rgb == "00FF0000"
     assert "A3:B3" in [str(rng) for rng in ws.merged_cells.ranges]
     assert ws["A1"].comment.text == "T[Review this]"
+
+    chart_texts = _chart_a_t_texts(result.output_bytes)
+    assert "T[Quarterly Revenue]" in chart_texts
+    assert "T[Amount]" in chart_texts
+    assert "T[Quarter]" in chart_texts
 
     assert len(wb.sheetnames) == 2
     assert result.output_filename == "input_fr.xlsx"
