@@ -46,8 +46,9 @@ uploaded_files = st.file_uploader(
 source_lang_label = st.selectbox("Source language", list(LANGUAGES.keys()), index=0)
 target_lang_label = st.selectbox("Target language", list(LANGUAGES.keys()), index=1)
 engine = st.radio("Translation engine", ["azure", "local"], help="Azure auto-falls back to local on failure")
+st.caption("Translate cells, sheet names, chart/drawing text (titles, labels, text boxes, shapes), comments, and notes while preserving workbook formatting.")
 
-if st.button("Run translation", type="primary"):
+if st.button("Translate", type="primary"):
     files = _extract_excel_files(uploaded_files or [])
     if not files:
         st.warning("No Excel files found in upload.")
