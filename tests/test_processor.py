@@ -115,7 +115,28 @@ def test_translation_preserves_formula_and_formatting(monkeypatch):
     assert drawing_texts == ["T[Flowchart Step]"]
 
     assert len(wb.sheetnames) == 2
-    assert result.output_filename == "input_fr.xlsx"
+    assert result.output_filename == "T[input]_fr.xlsx"
     assert any(log.object_id == "sheet_title" for log in result.logs)
 
     wb.close()
+
+
+def test_translation_output_filename_falls_back_when_name_translation_fails(monkeypatch):
+    from excel_translator import processor
+
+    def _fake_translate(self, text, source, target):
+        if text == "input":
+            raise RuntimeError("name translation failed")
+        return (f"T[{text}]", "fake_engine")
+
+    monkeypatch.setattr(processor.RoutedTranslator, "translate_with_engine", _fake_translate)
+
+    result = process_excel_file(
+        file_name="input.xlsx",
+        file_bytes=_sample_workbook_bytes(),
+        source_lang="en",
+        target_lang="fr",
+        selected_engine="azure",
+    )
+
+    assert result.output_filename == "input_fr.xlsx"
